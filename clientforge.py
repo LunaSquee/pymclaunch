@@ -15,8 +15,8 @@ mclib = 'https://libraries.minecraft.net/'
 
 class MinecraftClientForge(client.MinecraftClient):
     """Launch a Minecraft Forge-enabled client"""
-    def __init__(self, clientRoot, mcVersion, forgeVersion, gameName, authentication = None, jvm = None):
-        super(MinecraftClientForge, self).__init__(clientRoot, mcVersion, gameName, authentication, jvm)
+    def __init__(self, clientRoot, mcVersion, forgeVersion, gamedir, authentication = None, jvm = None):
+        super(MinecraftClientForge, self).__init__(clientRoot, mcVersion, gamedir, authentication, jvm)
         
         self.forge_version = forgeVersion
         self.forge_name = self.mcver + '-' + re.sub(r'^forge-', '', self.forge_version)
@@ -50,6 +50,9 @@ class MinecraftClientForge(client.MinecraftClient):
         metafile = os.path.join(self.tmp_dir, 'version.json')
         with open(metafile) as json_data:
             self.forge_metadata = json.load(json_data)
+
+        if not self.forge_metadata['inheritsFrom'] == self.metadata['id']:
+            raise ValueError('Versions mismatch! This forge version was made for Minecraft %s!' % (self.forge_metadata['inheritsFrom']))
 
         print('Creating pretty libraries ...')
         libs = []

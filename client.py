@@ -13,15 +13,13 @@ lib_url = 'https://libraries.minecraft.net/{package}/{name}/{version}/{name}-{ve
 
 class MinecraftClient(object):
     """Launch a vanilla Minecraft client"""
-    def __init__(self, clientRoot, mcVersion, gameName, authentication = None, jvm = None):
+    def __init__(self, clientRoot, mcVersion, gamedir, authentication = None, jvm = None):
         super(MinecraftClient, self).__init__()
         self.mcver = mcVersion
         self.client_root = clientRoot
         self.version_name = mcVersion
         self.version_directory = '%s/versions/%s' % (clientRoot, self.version_name)
-        self.name = gameName
-        self.game_dir = '%s/%s' % (clientRoot, gameName)
-
+        self.game_dir = gamedir
         self.metadata = None
         self.natives = None
         self.library_paths = []

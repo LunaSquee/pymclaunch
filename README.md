@@ -1,7 +1,29 @@
 # pymclaunch
 A [Minecraft](https://minecraft.net/en-us/) launcher library written in Python. Only third-party dependency is [requests](http://docs.python-requests.org/en/master/)!
 
-### Common constructor
+## Play Minecraft from the Terminal
+Use the `playmc.py` script!
+
+```
+Usage: playmc.py [options] profile
+
+Options:
+  -h, --help            show this help message and exit
+  -g GAME_DIR, --game-directory=GAME_DIR
+                        Game Directory (saves and mods)
+  -m MCVER, --minecraft=MCVER
+                        Minecraft Version
+  -p PERMGEN, --permgen=PERMGEN
+                        Maximum RAM allocated to Minecraft (default: 1G)
+  -f FORGE, --forge=FORGE
+                        Forge Version
+  -a                    Skip authentication
+  --jvm=JVM             JVM Arguments
+  --root-directory=ROOT_DIR
+                        Game Data Directory (versions and assets)
+```
+
+## Common constructor
 
 * **`clientRoot`** (string) - A path to the root directory of the Minecraft files (`~/.minecraft` is not recommended as the folder structure is different)
 * **`mcVersion`** (string) - Minecraft version
