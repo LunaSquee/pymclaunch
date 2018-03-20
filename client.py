@@ -1,3 +1,4 @@
+#!/usr/bin/python
 import requests
 import os
 import re
@@ -13,7 +14,7 @@ lib_url = 'https://libraries.minecraft.net/{package}/{name}/{version}/{name}-{ve
 
 class MinecraftClient(object):
     """Launch a vanilla Minecraft client"""
-    def __init__(self, clientRoot, mcVersion, gamedir, authentication = None, jvm = None):
+    def __init__(self, clientRoot, mcVersion, gamedir, authentication = None, jvm = None, **kwargs):
         super(MinecraftClient, self).__init__()
         self.mcver = mcVersion
         self.client_root = clientRoot
@@ -23,6 +24,7 @@ class MinecraftClient(object):
         self.metadata = None
         self.natives = None
         self.library_paths = []
+        self.kwargv = kwargs
 
         if not jvm:
             self.jvm = '-Xmx1G -XX:+UseConcMarkSweepGC -XX:+CMSIncrementalMode -XX:-UseAdaptiveSizePolicy -Xmn128M'
@@ -260,28 +262,91 @@ class MinecraftClient(object):
     def cleanup(self):
         shutil.rmtree(self.natives)
 
+    def launchargs(self):
+        self.library_paths.append(os.path.join(self.version_directory, '%s.jar' % (self.version_name)))
+        gamefmt = {
+            'version_name': self.version_name,
+            'game_directory': self.game_dir,
+            'assets_root': os.path.join(self.client_root, 'assets'),
+            'assets_index_name': self.metadata['assets'],
+            'auth_uuid': self.authentication.uuid,
+            'auth_access_token': self.authentication.access_token,
+            'user_type': "legacy",
+            'auth_player_name': self.authentication.player_name,
+            'version_type': self.metadata['type']
+        }
+        classpath = ':'.join(self.library_paths)
+        launchclass = self.metadata['mainClass']
+
+        # Older arguments
+        if 'minecraftArguments' in self.metadata:
+            launchargs_raw = self.metadata['minecraftArguments']
+            jvmargs = self.jvm + ' -Djava.library.path=%s -cp %s %s ' % (self.natives, classpath, launchclass)
+
+            if 'width' in self.kwargv and 'height' in self.kwargv:
+                launchargs_raw += ' --width %d --height %d '% (self.kwargv['width'], self.kwargv['height'])
+
+            if 'demo' in self.kwargv:
+                launchargs_raw += ' --demo '
+
+            gameargs = re.sub(r'\${', '{', launchargs_raw)
+            gameargs = gameargs.format(**gamefmt)
+
+            return jvmargs + gameargs
+
+        # New arguments system
+        if 'arguments' in self.metadata:
+            # GAME ARGUMENTS SETUP
+            argconstr = []
+            for argv in self.metadata['arguments']['game']:
+                if isinstance(argv, dict):
+                    if not self.kwargv:
+                        continue
+
+                    for rule in argv['rules']:
+                        if 'has_custom_resolution' in rule['features'] and 'width' in self.kwargv and 'height' in self.kwargv:
+                            argconstr += argv['value']
+                            gamefmt['resolution_width'] = self.kwargv['width']
+                            gamefmt['resolution_height'] = self.kwargv['height']
+                        elif 'is_demo_user' in rule['features'] and 'demo' in self.kwargv:
+                            argconstr.append(argv['value'])
+                else:
+                    argconstr.append(argv)
+            
+            gameargs = ' '.join(argconstr)
+            gameargs = re.sub(r'\${', '{', gameargs)
+            gameargs = gameargs.format(**gamefmt)
+
+            # JVM ARGUMENTS SETUP
+            jvargs = self.jvm.split(' ')
+            for x in self.metadata['arguments']['jvm']:
+                if isinstance(x, dict):
+                    for rule in argv['rules']:
+                        if 'os' in rule and rule['os']['name'] == platform():
+                            if rule['action'] == 'allow':
+                                if x['value'] is list:
+                                    jvargs += x['value']
+                                else:
+                                    jvargs.append(x['value'])
+                else:
+                    jvargs.append(x)
+
+            jvmargs = ' '.join(jvargs)
+            jvmargs = re.sub(r'\${', '{', jvmargs)
+            jvmargs = jvmargs.format(natives_directory=self.natives, launcher_name='pymclaunch', launcher_version='1.0', 
+                classpath=classpath)
+            jvmargs += ' ' + launchclass
+
+            return jvmargs + ' ' + gameargs
+
     def init_mc(self):
         self.install()
         self.extract_natives()
         
         ensure_dir(self.game_dir)
 
-        self.library_paths.append(os.path.join(self.version_directory, '%s.jar' % (self.version_name)))
-
-        launchargs_version = self.metadata['minecraftArguments']
-        launchargs_class = self.metadata['mainClass']
-        launchargs_libs = ':'.join(self.library_paths)
-        launchargs_jvm = self.jvm + ' -Djava.library.path=%s -cp %s %s ' % (self.natives, launchargs_libs, launchargs_class)
-
-        launchargs = re.sub(r'\${', '{', launchargs_version)
-        launchargs = launchargs.format(version_name=self.version_name, game_directory=self.game_dir, 
-            assets_root=os.path.join(self.client_root, 'assets'), assets_index_name=self.metadata['assets'], 
-            auth_uuid=self.authentication.uuid, auth_access_token=self.authentication.access_token, user_type="legacy", 
-            auth_player_name=self.authentication.player_name, version_type=self.metadata['type'])
-
-        launchargs_jvm += launchargs
-
-        process = subprocess.Popen(launchargs_jvm.split(' '), cwd=self.game_dir, executable="java", 
+        launchargs = self.launchargs()
+        process = subprocess.Popen(launchargs.split(' '), cwd=self.game_dir, executable="java", 
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
         for line in iter(process.stdout.readline, b''):
